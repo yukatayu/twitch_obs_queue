@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Queue Admin</title>
+  <link rel="stylesheet" href="/assets/app.css" />
+</head>
+<body>
+  <h1>Queue 管理</h1>
+
+  <div class="card">
+    <div class="row">
+      <div>
+        <div><strong>状態</strong></div>
+        <div id="statusText" class="small">loading...</div>
+      </div>
+      <div class="spacer"></div>
+      <button class="btn" id="loginBtn">Twitchでログイン</button>
+      <button class="btn danger" id="logoutBtn">ログアウト</button>
+      <a class="btn" href="/admin/rewards">報酬ID一覧</a>
+      <a class="btn" href="/obs" target="_blank">OBS表示</a>
+    </div>
+    <div id="hint" class="small" style="margin-top:8px;"></div>
+  </div>
+
+  <h2>キュー</h2>
+  <div id="queue" class="queue"></div>
+
+  <script src="/assets/admin.js"></script>
+</body>
+</html>

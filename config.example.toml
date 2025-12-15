@@ -1,0 +1,29 @@
+# 例: config.toml としてコピーして使ってください
+
+[server]
+# ローカルPCだけで使うなら 127.0.0.1 推奨
+bind = "127.0.0.1:3000"
+# 静的ファイル(HTML/CSS/JS)のディレクトリ
+static_dir = "static"
+# SQLite DB の保存先
+db_path = "data/app.db"
+
+[twitch]
+client_id = "YOUR_TWITCH_CLIENT_ID"
+client_secret = "YOUR_TWITCH_CLIENT_SECRET"
+# Twitch開発者コンソールに登録した Redirect URL と完全一致させる
+redirect_url = "http://localhost:3000/auth/callback"
+
+# 監視対象の報酬ID（未設定なら全報酬を購読し、受け取った通知をログに出しますが、キュー追加はしません）
+target_reward_id = ""
+
+# ユーザーのアイコン(URL)などをDBにキャッシュする期間（秒）
+# 0 にすると毎回Helixから取りに行きます
+user_cache_ttl_secs = 86400
+
+[queue]
+# "過去◯秒の参加回数" で優先度を決める
+participation_window_secs = 86400
+
+# processed_messages(重複通知除外) の保持期間
+processed_message_ttl_secs = 86400

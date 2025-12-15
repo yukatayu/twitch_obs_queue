@@ -1,0 +1,5 @@
+target
+data
+*.exe
+*.pdb
+config.toml
