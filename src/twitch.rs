@@ -53,6 +53,35 @@ struct HelixRewardsResponse {
     data: Vec<HelixReward>,
 }
 
+// event subscription の掃除用
+#[derive(Debug, Deserialize)]
+struct EventSubListResponse {
+    data: Vec<EventSubSubscription>,
+    #[serde(default)]
+    pagination: EventSubPagination,
+}
+
+#[derive(Debug, Deserialize, Default)]
+struct EventSubPagination {
+    #[serde(default)]
+    cursor: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct EventSubSubscription {
+    id: String,
+    status: String,
+    #[serde(rename = "type")]
+    typ: String,
+    transport: EventSubTransportInfo,
+}
+
+#[derive(Debug, Deserialize)]
+struct EventSubTransportInfo {
+    method: String,
+}
+// ここまで掃除用
+
 pub fn build_authorize_url(config: &crate::config::Config, state: &str) -> anyhow::Result<String> {
     let mut url = Url::parse(AUTHORIZE_ENDPOINT)?;
     url.query_pairs_mut()
@@ -455,6 +484,7 @@ pub async fn run_eventsub_loop(state: Arc<AppState>) -> anyhow::Result<()> {
 
     let mut ws_url = Url::parse(EVENTSUB_WS_URL)?;
     let mut need_subscribe = true;
+    let mut did_startup_cleanup = false;
 
     loop {
         // We cannot do anything without a token.
@@ -498,6 +528,20 @@ pub async fn run_eventsub_loop(state: Arc<AppState>) -> anyhow::Result<()> {
                 }
             }
         };
+
+        // 起動時1回だけ：disabled な購読を削除（token が取れるまで待つ）
+        if !did_startup_cleanup {
+            match cleanup_disabled_ws_subscriptions(&state, &token.access_token).await {
+                Ok(n) => {
+                    info!(deleted = n, "startup cleanup: removed disabled EventSub subscriptions");
+                    did_startup_cleanup = true;
+                }
+                Err(e) => {
+                    // 失敗しても致命ではないので、次ループで再トライさせる
+                    warn!(error=?e, "startup cleanup failed; will retry");
+                }
+            }
+        }
 
         info!(ws = %ws_url, "connecting to EventSub WebSocket");
         let connect = tokio_tungstenite::connect_async(ws_url.as_str()).await;
@@ -752,3 +796,81 @@ async fn create_redemption_subscription(
 
     Ok(())
 }
+
+// event subscription の掃除
+async fn cleanup_disabled_ws_subscriptions(
+    state: &AppState,
+    access_token: &str,
+) -> anyhow::Result<u32> {
+    let mut deleted: u32 = 0;
+    let mut after: Option<String> = None;
+
+    loop {
+        let mut url = Url::parse(&format!("{HELIX_ENDPOINT}/eventsub/subscriptions"))?;
+        {
+            let mut qp = url.query_pairs_mut();
+            // 事故防止：このアプリが使う type だけ対象にする
+            qp.append_pair("type", "channel.channel_points_custom_reward_redemption.add");
+            qp.append_pair("first", "100");
+            if let Some(a) = &after {
+                qp.append_pair("after", a);
+            }
+        }
+
+        let resp = state
+            .http
+            .get(url)
+            .header("Client-Id", &state.config.twitch.client_id)
+            .header("Authorization", format!("Bearer {access_token}"))
+            .send()
+            .await?
+            .error_for_status()?;
+
+        let list: EventSubListResponse = resp.json().await?;
+
+        for sub in &list.data {
+            // “disabled”扱い：enabled 以外を消す（websocket だけ）
+            if sub.transport.method == "websocket" && sub.status != "enabled" {
+                if let Err(e) = helix_delete_eventsub_subscription(state, access_token, &sub.id).await {
+                    warn!(error=?e, sub_id=%sub.id, status=%sub.status, "failed to delete stale subscription");
+                } else {
+                    deleted += 1;
+                    info!(sub_id=%sub.id, status=%sub.status, "deleted stale subscription");
+                }
+            }
+        }
+
+        after = list.pagination.cursor;
+        if after.is_none() {
+            break;
+        }
+    }
+
+    Ok(deleted)
+}
+
+async fn helix_delete_eventsub_subscription(
+    state: &AppState,
+    access_token: &str,
+    sub_id: &str,
+) -> anyhow::Result<()> {
+    let mut url = Url::parse(&format!("{HELIX_ENDPOINT}/eventsub/subscriptions"))?;
+    url.query_pairs_mut().append_pair("id", sub_id);
+
+    let resp = state
+        .http
+        .delete(url)
+        .header("Client-Id", &state.config.twitch.client_id)
+        .header("Authorization", format!("Bearer {access_token}"))
+        .send()
+        .await?;
+
+    if resp.status().as_u16() == 204 {
+        return Ok(());
+    }
+
+    let status = resp.status();
+    let body = resp.text().await.unwrap_or_default();
+    anyhow::bail!("delete subscription failed: {status} {body}");
+}
+
