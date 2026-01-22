@@ -10,6 +10,7 @@ env:
 
 permissions:
   contents: write
+  actions: write
 
 jobs:
   build-linux:
@@ -81,8 +82,11 @@ jobs:
           path: artifacts
 
       - name: Publish GitHub Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
-          files: artifacts/**/*.{zip,tar.gz}
+          fail_on_unmatched_files: true
+          files: |
+            artifacts/**/*.zip
+            artifacts/**/*.tar.gz
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
