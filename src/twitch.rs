@@ -848,29 +848,3 @@ async fn cleanup_disabled_ws_subscriptions(
 
     Ok(deleted)
 }
-
-async fn helix_delete_eventsub_subscription(
-    state: &AppState,
-    access_token: &str,
-    sub_id: &str,
-) -> anyhow::Result<()> {
-    let mut url = Url::parse(&format!("{HELIX_ENDPOINT}/eventsub/subscriptions"))?;
-    url.query_pairs_mut().append_pair("id", sub_id);
-
-    let resp = state
-        .http
-        .delete(url)
-        .header("Client-Id", &state.config.twitch.client_id)
-        .header("Authorization", format!("Bearer {access_token}"))
-        .send()
-        .await?;
-
-    if resp.status().as_u16() == 204 {
-        return Ok(());
-    }
-
-    let status = resp.status();
-    let body = resp.text().await.unwrap_or_default();
-    anyhow::bail!("delete subscription failed: {status} {body}");
-}
-

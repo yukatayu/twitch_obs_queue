@@ -1,0 +1,85 @@
+name: release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust (musl)
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-unknown-linux-musl
+
+      - name: Install musl tools
+        run: sudo apt-get update && sudo apt-get install -y musl-tools
+
+      - name: Build (musl, static)
+        run: cargo build --release --target x86_64-unknown-linux-musl
+
+      - name: Package artifacts
+        run: |
+          mkdir -p artifacts
+          bin=target/x86_64-unknown-linux-musl/release/twitch_obs_queue
+          tar czf artifacts/twitch_obs_queue-x86_64-unknown-linux-musl.tar.gz \
+            $bin config.example.toml migrations static
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-musl
+          path: artifacts/twitch_obs_queue-x86_64-unknown-linux-musl.tar.gz
+
+  build-windows:
+    runs-on: windows-latest
+    env:
+      RUSTFLAGS: -C target-feature=+crt-static
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust (MSVC)
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - name: Build (MSVC, static CRT)
+        run: cargo build --release --target x86_64-pc-windows-msvc
+
+      - name: Package artifacts
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path artifacts | Out-Null
+          $bin = "target/x86_64-pc-windows-msvc/release/twitch_obs_queue.exe"
+          $zip = "artifacts/twitch_obs_queue-x86_64-pc-windows-msvc.zip"
+          Compress-Archive -Path $bin, "config.example.toml", "migrations", "static" -DestinationPath $zip
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-msvc
+          path: artifacts/twitch_obs_queue-x86_64-pc-windows-msvc.zip
+
+  release:
+    needs:
+      - build-linux
+      - build-windows
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: artifacts/**/*.{zip,tar.gz}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
