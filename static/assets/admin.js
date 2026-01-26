@@ -45,7 +45,7 @@ function renderQueue(items) {
 
     const meta = document.createElement('div');
     meta.className = 'meta';
-    meta.textContent = `@${item.user_login} / 24h参加: ${item.recent_participation_count}`;
+    meta.textContent = `@${item.user_login} / 最近の参加: ${item.recent_participation_count}`;
 
     info.appendChild(name);
     info.appendChild(meta);

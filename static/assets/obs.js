@@ -24,7 +24,7 @@ function render(items) {
 
     const meta = document.createElement('div');
     meta.className = 'meta';
-    meta.textContent = `24h参加: ${item.recent_participation_count}`;
+    meta.textContent = `最近の参加: ${item.recent_participation_count}`;
 
     el.appendChild(img);
     el.appendChild(name);
