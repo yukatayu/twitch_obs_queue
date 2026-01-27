@@ -1,60 +1,77 @@
-# twitch_obs_queue (Rust)
+# twitch_obs_queue
 
-Twitch の「チャンネルポイント報酬」(特定の報酬ID)が交換されたら、
-そのユーザーを **キューに追加**し、OBS Browser Source で一覧表示します。
+## これは何？
+- Twitchで特定のチャンネルポイントを交換した人を，OBSに一覧表示します
+- 最近参加した回数が少ない人を先頭に持っていく機能があります。
 
-- 24時間以内（設定可能）に「参加完了」した回数が少ない人ほど前に入ります
-- 既にキューにいる人が再度交換しても無視
-- SQLite に保存するので再起動してもキュー維持
-- 管理画面(ブラウザ)で、完了/キャンセルで削除・並べ替え
-- ユーザーアイコン(URL)はDBにキャッシュして、Helix 呼び出しを減らします
+> ▼ 管理画面の例
+> ![管理画面](document_images/admin_panel.png)
 
-開発中に再起動を繰り返すと EventSub の WebSocket サブスクリプションが溜まりがちなので、
-本アプリは **切断済み(非enabled)のWebSocketサブスクリプションをベストエフォートで掃除**します。
+> ▼ OBS画面の例
+> ![OBS画面](document_images/OBS_example.png)
 
-## 使い方（最短ルート）
+## 初期設定は？
 
-1. Twitch Developer Console でアプリ作成
-   - Redirect URL に `http://localhost:3000/auth/callback` を登録（ポートは config.toml の `server.bind` と合わせる）
-2. `config.example.toml` を `config.toml` にコピー
-3. `config.toml` に `twitch.client_id` / `twitch.client_secret` を入れる
-4. 起動
-   ```bash
-   CONFIG=config.toml cargo run --release
-   ```
-5. ブラウザで管理画面を開く
-   - `http://localhost:3000/admin`
-   - 「Twitchでログイン」
-6. 報酬IDを確認
-   - 右上の「報酬ID一覧」から、使いたい報酬の `id` をコピー
-   - `config.toml` の `twitch.target_reward_id` に貼り付けて再起動
-7. OBS に追加
-   - Browser Source URL: `http://127.0.0.1:3000/obs`
+Windows 前提で話します。 （Linux の場合には適宜ファイル名を読み替えてください。）
 
-## 管理操作
+- https://github.com/yukatayu/twitch_obs_queue/releases から最新版の  `twitch_obs_queue-x86_64-pc-windows-msvc.zip` をダウンロードし，展開します。
 
-- ✅完了: キューから削除し、「参加完了」として履歴(参与回数)に記録
-- ❌キャンセル: キューから削除するが、「参加完了」には数えない
-- ↑/↓: 並べ替え
+- config.example.toml を config.toml にコピーする
+- twitch 側にアプリを登録する
+  - https://dev.twitch.tv/console/apps/create に行く
+  - (名前は何でも良いです)
+  - OAuthのリダイレクトURL は `http://localhost:3000/auth/callback`
+  - カテゴリは `Application Integration` (別のでも良い)
+  - クライアントのタイプは `機密保持について` を選択
+  - `作成` を押す
+  - 自動で https://dev.twitch.tv/console/apps が開かれるので，今登録した行の右側の `管理` を押す
+  - `クライアントID` に書いてある記号列で， config.toml の `YOUR_TWITCH_CLIENT_ID` を置換する
+  - `新しい秘密` を押す
+  - 出てきた記号列で， config.toml の `YOUR_TWITCH_CLIENT_SECRET` を置換する。
 
-※ 「完了/キャンセル」の区別は **優先度計算(過去window内の参加回数)** に影響します。
+config.toml の該当部は，例えばこんな感じになります (記号列は人によって異なります)
+```yaml
+[twitch]
+client_id = "4kasdo4ijadtas89jasolidgjbmeio"
+client_secret = "3u3dsiaukh3agha8g97ah3kjh9akeh"
+```
 
-## 設定 (config.toml)
+- twitch_obs_queue.exe を実行する
+  - http://localhost:3000/ をブラウザで開くと管理画面が出る
+  - `未ログイン` と出るので，まずは `Twitchでログイン` を押してログインする
+  - `config.toml の twitch.target_reward_id が未設定です。` と出るので，設定する
+    - `報酬ID一覧` を押して表示する
+    - 参加券のIDを控える
+    - config.toml の `target_reward_id` に設定する
 
-- `queue.participation_window_secs`
-  - 24h を変えたい場合はここ
-- `queue.processed_message_ttl_secs`
-  - EventSub の `message_id` をどれくらい保持して重複通知を弾くか
+config.toml の該当部は，例えばこんな感じになります（記号列人によって異なります）
+```yaml
+target_reward_id = "3902c2be-849a-46ed-8b1c-12d196927a31"
+```
 
-- `twitch.user_cache_ttl_secs`
-  - ユーザーのアイコンURLなどをDBにキャッシュする期間（秒）
-  - 0 にすると毎回Helixから取りに行きます
+- twitch_obs_queue.exe を閉じて開きなおす
+- `OBS表示` のボタンを押します
+  - http://localhost:3000/obs が新規タブで開く
+  - このURLを OBS のブラウザソースに追加する (幅300程度)
 
-## トラブルシュート
+
+## 操作方法
+
+- 管理画面は http://localhost:3000/ で開ける。
+- 人がチャンネルポイントを交換すると，管理画面に追加される。
+  - 管理画面で「完了」か「キャンセル」を押すと，エントリーが消える
+  - 24時間以内に「完了」した回数が少ない人が優先して列の先頭に入れられる
+    - この設定を0秒 や 1秒 にすることで，実質無効にできる
+    - config.toml の participation_window_secs で秒数を設定できる
+  - 既に並んでいる人が再び参加券を引き換えても，何も起きない
+    - 完了を押し忘れないようにしてあげてくださいね
+    -  (ゲーム開始した時点で完了を押すと良いと思う)
+  - 順番は ↑ ↓ ボタンを押すことで入れ替え可能です
+
+## トラブルシューティング
 
 - `unauthorized` / `failed to create subscription`
   - Twitch の OAuth スコープが足りない可能性
   - このアプリは `channel:read:redemptions` を要求します
 - `redirect_uri does not match`
-  - Twitch 開発者コンソールに登録した Redirect URL と config.toml が完全一致しているか確認
-
+  - Twitch 開発者コンソールに登録した Redirect URL と config.toml が完全一致しているか確認してください
