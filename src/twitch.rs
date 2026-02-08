@@ -648,21 +648,32 @@ pub async fn run_eventsub_loop(state: Arc<AppState>) -> anyhow::Result<()> {
                                 }
                             };
 
-                            // Optional extra safety check
-                            if !util::is_blank(&state.config.twitch.target_reward_id)
-                                && payload.event.reward.id != state.config.twitch.target_reward_id
-                            {
-                                debug!(reward_id=%payload.event.reward.id, title=%payload.event.reward.title, "non-target reward ignored");
-                                continue;
-                            }
+                            let target_reward_id = state.config.twitch.target_reward_id.as_str();
+                            let cancel_reward_id = state.config.twitch.cancel_reward_id.as_str();
+                            let reward_id = payload.event.reward.id.as_str();
 
-                            if util::is_blank(&state.config.twitch.target_reward_id) {
-                                info!(
-                                    reward_id = %payload.event.reward.id,
-                                    reward_title = %payload.event.reward.title,
-                                    user = %payload.event.user_name,
-                                    "received redemption (target_reward_id not set; not enqueuing)"
-                                );
+                            let is_target_reward =
+                                !util::is_blank(target_reward_id) && reward_id == target_reward_id;
+                            if !is_target_reward {
+                                if !util::is_blank(cancel_reward_id) && reward_id == cancel_reward_id {
+                                    let canceled = queue::cancel_by_user_id(&state.db, &payload.event.user_id).await?;
+                                    if canceled {
+                                        info!(user_id=%payload.event.user_id, reward_id=%payload.event.reward.id, "canceled queued user by redemption");
+                                    } else {
+                                        debug!(user_id=%payload.event.user_id, reward_id=%payload.event.reward.id, "cancel redemption ignored; user not in queue");
+                                    }
+                                } else {
+                                    if util::is_blank(target_reward_id) {
+                                        info!(
+                                            reward_id = %payload.event.reward.id,
+                                            reward_title = %payload.event.reward.title,
+                                            user = %payload.event.user_name,
+                                            "received redemption (target_reward_id not set; not enqueuing)"
+                                        );
+                                    } else {
+                                        debug!(reward_id=%payload.event.reward.id, title=%payload.event.reward.title, "non-target reward ignored");
+                                    }
+                                }
                                 continue;
                             }
 
@@ -759,12 +770,43 @@ async fn create_redemption_subscription(
     session_id: &str,
     broadcaster_id: &str,
 ) -> anyhow::Result<()> {
-    let reward_id_opt = if util::is_blank(&state.config.twitch.target_reward_id) {
+    let target_reward_id_opt = if util::is_blank(&state.config.twitch.target_reward_id) {
         None
     } else {
         Some(state.config.twitch.target_reward_id.as_str())
     };
 
+    create_redemption_subscription_with_reward(
+        state,
+        access_token,
+        session_id,
+        broadcaster_id,
+        target_reward_id_opt,
+    )
+    .await?;
+
+    let cancel_reward_id = state.config.twitch.cancel_reward_id.as_str();
+    if !util::is_blank(cancel_reward_id) && target_reward_id_opt != Some(cancel_reward_id) {
+        create_redemption_subscription_with_reward(
+            state,
+            access_token,
+            session_id,
+            broadcaster_id,
+            Some(cancel_reward_id),
+        )
+        .await?;
+    }
+
+    Ok(())
+}
+
+async fn create_redemption_subscription_with_reward(
+    state: &AppState,
+    access_token: &str,
+    session_id: &str,
+    broadcaster_id: &str,
+    reward_id_opt: Option<&str>,
+) -> anyhow::Result<()> {
     let req = CreateSubRequest {
         typ: SUB_TYPE_REDEMPTION_ADD,
         version: "1",

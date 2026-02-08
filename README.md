@@ -44,10 +44,14 @@ client_secret = "3u3dsiaukh3agha8g97ah3kjh9akeh"
     - 参加券のIDを控える
     - config.toml の `target_reward_id` に設定する
 
-config.toml の該当部は，例えばこんな感じになります（記号列人によって異なります）
+config.toml の該当部は，例えばこんな感じになります（記号列は人によって異なります）
 ```yaml
 target_reward_id = "3902c2be-849a-46ed-8b1c-12d196927a31"
 ```
+
+- やってもやらなくても良い設定
+  - 参加キャンセル用の券があるなら，それを `cancel_reward_id` に設定してください
+  - 設定されていない場合も問題なく動作します。
 
 - twitch_obs_queue.exe を閉じて開きなおす
 - `OBS表示` のボタンを押します

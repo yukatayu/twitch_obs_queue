@@ -89,6 +89,25 @@ pub async fn is_user_queued(pool: &SqlitePool, user_id: &str) -> anyhow::Result<
     Ok(row.is_some())
 }
 
+pub async fn cancel_by_user_id(pool: &SqlitePool, user_id: &str) -> anyhow::Result<bool> {
+    let id = sqlx::query_scalar::<_, String>(
+        r#"SELECT id
+           FROM queue_items
+           WHERE user_id = ?1
+           LIMIT 1"#,
+    )
+    .bind(user_id)
+    .fetch_optional(pool)
+    .await?;
+
+    let Some(id) = id else {
+        return Ok(false);
+    };
+
+    delete_item(pool, &id, DeleteMode::Canceled).await?;
+    Ok(true)
+}
+
 pub async fn enqueue_user(
     pool: &SqlitePool,
     participation_window_secs: i64,

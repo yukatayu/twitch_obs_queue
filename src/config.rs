@@ -64,6 +64,10 @@ pub struct TwitchConfig {
     #[serde(default)]
     pub target_reward_id: String,
 
+    /// If empty, cancel reward handling is disabled.
+    #[serde(default)]
+    pub cancel_reward_id: String,
+
     /// Cache TTL for user profiles (profile image URL) in seconds.
     /// Set 0 to always fetch from Helix.
     #[serde(default = "default_user_cache_ttl_secs")]
@@ -77,6 +81,7 @@ impl Default for TwitchConfig {
             client_secret: String::new(),
             redirect_url: default_redirect_url(),
             target_reward_id: String::new(),
+            cancel_reward_id: String::new(),
             user_cache_ttl_secs: default_user_cache_ttl_secs(),
         }
     }

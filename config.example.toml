@@ -16,6 +16,8 @@ redirect_url = "http://localhost:3000/auth/callback"
 
 # 監視対象の報酬ID（未設定なら全報酬を購読し、受け取った通知をログに出しますが、キュー追加はしません）
 target_reward_id = ""
+# キャンセル対象の報酬ID（未設定なら無効）
+cancel_reward_id = ""
 
 # ユーザーのアイコン(URL)などをDBにキャッシュする期間（秒）
 # 0 にすると毎回Helixから取りに行きます
