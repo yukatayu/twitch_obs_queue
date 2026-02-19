@@ -60,9 +60,9 @@ pub struct TwitchConfig {
     #[serde(default = "default_redirect_url")]
     pub redirect_url: String,
 
-    /// If empty, we subscribe to all rewards but we won't enqueue.
+    /// Join reward IDs. Empty IDs are ignored after trim.
     #[serde(default)]
-    pub target_reward_id: String,
+    pub target_reward_ids: Vec<String>,
 
     /// If empty, cancel reward handling is disabled.
     #[serde(default)]
@@ -80,7 +80,7 @@ impl Default for TwitchConfig {
             client_id: String::new(),
             client_secret: String::new(),
             redirect_url: default_redirect_url(),
-            target_reward_id: String::new(),
+            target_reward_ids: Vec::new(),
             cancel_reward_id: String::new(),
             user_cache_ttl_secs: default_user_cache_ttl_secs(),
         }

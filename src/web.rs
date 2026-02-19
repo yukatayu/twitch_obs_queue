@@ -150,7 +150,7 @@ struct StatusDto {
     authenticated: bool,
     broadcaster_id: Option<String>,
     broadcaster_login: Option<String>,
-    target_reward_id: String,
+    target_reward_ids: Vec<String>,
     participation_window_secs: u64,
     server_time: i64,
 }
@@ -164,7 +164,7 @@ async fn api_status(State(app): State<Arc<AppState>>) -> ApiResult<Json<StatusDt
         authenticated,
         broadcaster_id,
         broadcaster_login,
-        target_reward_id: app.config.twitch.target_reward_id.clone(),
+        target_reward_ids: app.config.twitch.target_reward_ids.clone(),
         participation_window_secs: app.config.queue.participation_window_secs,
         server_time: util::now_epoch(),
     }))

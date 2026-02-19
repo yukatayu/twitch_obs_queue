@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{collections::HashSet, sync::Arc};
 
 use futures_util::{SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
@@ -477,16 +477,76 @@ struct SubTransport<'a> {
     session_id: &'a str,
 }
 
+#[derive(Debug, Clone)]
+struct RedemptionRoutingConfig {
+    join_ids: Vec<String>,
+    join_id_set: HashSet<String>,
+    cancel_id: Option<String>,
+}
+
+impl RedemptionRoutingConfig {
+    fn from_config(cfg: &crate::config::TwitchConfig) -> Self {
+        let mut join_ids = Vec::new();
+        let mut join_id_set = HashSet::new();
+
+        for raw in &cfg.target_reward_ids {
+            let id = raw.trim();
+            if id.is_empty() {
+                continue;
+            }
+            if join_id_set.insert(id.to_string()) {
+                join_ids.push(id.to_string());
+            }
+        }
+
+        let cancel_id = cfg.cancel_reward_id.trim();
+        let cancel_id = if cancel_id.is_empty() {
+            None
+        } else if join_id_set.contains(cancel_id) {
+            warn!(
+                reward_id = %cancel_id,
+                "twitch.cancel_reward_id is also in twitch.target_reward_ids; cancel handling is disabled for safety"
+            );
+            None
+        } else {
+            Some(cancel_id.to_string())
+        };
+
+        Self {
+            join_ids,
+            join_id_set,
+            cancel_id,
+        }
+    }
+
+    fn is_disabled(&self) -> bool {
+        self.join_ids.is_empty() && self.cancel_id.is_none()
+    }
+}
+
 pub async fn run_eventsub_loop(state: Arc<AppState>) -> anyhow::Result<()> {
     if util::is_blank(&state.config.twitch.client_id) || util::is_blank(&state.config.twitch.client_secret) {
         warn!("twitch.client_id / twitch.client_secret are empty. Set them in config.toml.");
     }
 
+    let routing = RedemptionRoutingConfig::from_config(&state.config.twitch);
     let mut ws_url = Url::parse(EVENTSUB_WS_URL)?;
     let mut need_subscribe = true;
     let mut did_startup_cleanup = false;
+    let mut did_warn_eventsub_disabled = false;
 
     loop {
+        if routing.is_disabled() {
+            if !did_warn_eventsub_disabled {
+                warn!(
+                    "twitch.target_reward_ids と twitch.cancel_reward_id が未設定なので EventSub は無効です。設定して再起動してください。"
+                );
+                did_warn_eventsub_disabled = true;
+            }
+            tokio::time::sleep(std::time::Duration::from_secs(60)).await;
+            continue;
+        }
+
         // We cannot do anything without a token.
         let Some(mut token) = db::get_oauth_token(&state.db).await? else {
             tokio::time::sleep(std::time::Duration::from_secs(2)).await;
@@ -591,6 +651,7 @@ pub async fn run_eventsub_loop(state: Arc<AppState>) -> anyhow::Result<()> {
                                     &token.access_token,
                                     &payload.session.id,
                                     &broadcaster_id,
+                                    &routing,
                                 )
                                 .await
                                 {
@@ -648,14 +709,10 @@ pub async fn run_eventsub_loop(state: Arc<AppState>) -> anyhow::Result<()> {
                                 }
                             };
 
-                            let target_reward_id = state.config.twitch.target_reward_id.as_str();
-                            let cancel_reward_id = state.config.twitch.cancel_reward_id.as_str();
                             let reward_id = payload.event.reward.id.as_str();
 
-                            let is_target_reward =
-                                !util::is_blank(target_reward_id) && reward_id == target_reward_id;
-                            if !is_target_reward {
-                                if !util::is_blank(cancel_reward_id) && reward_id == cancel_reward_id {
+                            if !routing.join_id_set.contains(reward_id) {
+                                if routing.cancel_id.as_deref() == Some(reward_id) {
                                     let canceled = queue::cancel_by_user_id(&state.db, &payload.event.user_id).await?;
                                     if canceled {
                                         info!(user_id=%payload.event.user_id, reward_id=%payload.event.reward.id, "canceled queued user by redemption");
@@ -663,16 +720,7 @@ pub async fn run_eventsub_loop(state: Arc<AppState>) -> anyhow::Result<()> {
                                         debug!(user_id=%payload.event.user_id, reward_id=%payload.event.reward.id, "cancel redemption ignored; user not in queue");
                                     }
                                 } else {
-                                    if util::is_blank(target_reward_id) {
-                                        info!(
-                                            reward_id = %payload.event.reward.id,
-                                            reward_title = %payload.event.reward.title,
-                                            user = %payload.event.user_name,
-                                            "received redemption (target_reward_id not set; not enqueuing)"
-                                        );
-                                    } else {
-                                        debug!(reward_id=%payload.event.reward.id, title=%payload.event.reward.title, "non-target reward ignored");
-                                    }
+                                    debug!(reward_id=%payload.event.reward.id, title=%payload.event.reward.title, "non-target reward ignored");
                                 }
                                 continue;
                             }
@@ -769,30 +817,26 @@ async fn create_redemption_subscription(
     access_token: &str,
     session_id: &str,
     broadcaster_id: &str,
+    routing: &RedemptionRoutingConfig,
 ) -> anyhow::Result<()> {
-    let target_reward_id_opt = if util::is_blank(&state.config.twitch.target_reward_id) {
-        None
-    } else {
-        Some(state.config.twitch.target_reward_id.as_str())
-    };
-
-    create_redemption_subscription_with_reward(
-        state,
-        access_token,
-        session_id,
-        broadcaster_id,
-        target_reward_id_opt,
-    )
-    .await?;
-
-    let cancel_reward_id = state.config.twitch.cancel_reward_id.as_str();
-    if !util::is_blank(cancel_reward_id) && target_reward_id_opt != Some(cancel_reward_id) {
+    for reward_id in &routing.join_ids {
         create_redemption_subscription_with_reward(
             state,
             access_token,
             session_id,
             broadcaster_id,
-            Some(cancel_reward_id),
+            reward_id,
+        )
+        .await?;
+    }
+
+    if let Some(cancel_reward_id) = routing.cancel_id.as_deref() {
+        create_redemption_subscription_with_reward(
+            state,
+            access_token,
+            session_id,
+            broadcaster_id,
+            cancel_reward_id,
         )
         .await?;
     }
@@ -805,14 +849,14 @@ async fn create_redemption_subscription_with_reward(
     access_token: &str,
     session_id: &str,
     broadcaster_id: &str,
-    reward_id_opt: Option<&str>,
+    reward_id: &str,
 ) -> anyhow::Result<()> {
     let req = CreateSubRequest {
         typ: SUB_TYPE_REDEMPTION_ADD,
         version: "1",
         condition: SubCondition {
             broadcaster_user_id: broadcaster_id,
-            reward_id: reward_id_opt,
+            reward_id: Some(reward_id),
         },
         transport: SubTransport {
             method: "websocket",

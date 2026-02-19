@@ -14,8 +14,8 @@ client_secret = "YOUR_TWITCH_CLIENT_SECRET"
 # Twitch開発者コンソールに登録した Redirect URL と完全一致させる
 redirect_url = "http://localhost:3000/auth/callback"
 
-# 監視対象の報酬ID（未設定なら全報酬を購読し、受け取った通知をログに出しますが、キュー追加はしません）
-target_reward_id = ""
+# 参加券の報酬ID（複数指定）
+target_reward_ids = []
 # キャンセル対象の報酬ID（未設定なら無効）
 cancel_reward_id = ""
 

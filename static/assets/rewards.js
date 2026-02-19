@@ -82,7 +82,7 @@ async function load() {
   }
 
   const rewards = await api('/api/rewards');
-  hint.textContent = 'config.toml の twitch.target_reward_id に、使いたい報酬のIDを貼り付けて再起動してください。';
+  hint.textContent = 'config.toml の twitch.target_reward_ids に、使いたい報酬のIDを配列で設定して再起動してください。';
   render(rewards);
 }
 

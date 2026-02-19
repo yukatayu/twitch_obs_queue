@@ -105,17 +105,20 @@ async function refresh() {
     const auth = lastStatus.authenticated ? 'ログイン済み' : '未ログイン';
     const b = lastStatus.broadcaster_login ? ` / broadcaster: ${lastStatus.broadcaster_login}` : '';
     const w = ` / window: ${lastStatus.participation_window_secs}s`;
-    const reward = lastStatus.target_reward_id && lastStatus.target_reward_id.trim() !== ''
-      ? ` / target_reward_id: ${lastStatus.target_reward_id}`
-      : ' / target_reward_id: (未設定)';
+    const targetRewardIds = Array.isArray(lastStatus.target_reward_ids)
+      ? lastStatus.target_reward_ids.filter(x => typeof x === 'string' && x.trim() !== '')
+      : [];
+    const reward = targetRewardIds.length > 0
+      ? ` / target_reward_ids: ${targetRewardIds.join(',')}`
+      : ' / target_reward_ids: (未設定)';
 
     setText('statusText', `${auth}${b}${w}${reward}`);
 
     const hint = document.getElementById('hint');
     if (!lastStatus.authenticated) {
       hint.textContent = 'まず「Twitchでログイン」を押してください。';
-    } else if (!lastStatus.target_reward_id || lastStatus.target_reward_id.trim() === '') {
-      hint.textContent = 'config.toml の twitch.target_reward_id が未設定です。右上の「報酬ID一覧」で確認して設定してください。';
+    } else if (targetRewardIds.length === 0) {
+      hint.textContent = 'config.toml の twitch.target_reward_ids が未設定です。右上の「報酬ID一覧」で確認して設定してください。';
     } else {
       hint.textContent = '';
     }

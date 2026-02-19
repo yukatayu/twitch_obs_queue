@@ -40,15 +40,21 @@ client_secret = "3u3dsiaukh3agha8g97ah3kjh9akeh"
 - twitch_obs_queue.exe を実行する
   - http://localhost:3000/ をブラウザで開くと管理画面が出る
   - `未ログイン` と出るので，まずは `Twitchでログイン` を押してログインする
-  - `config.toml の twitch.target_reward_id が未設定です。` と出るので，設定する
+  - `config.toml の twitch.target_reward_ids が未設定です。` と出るので，設定する
     - `報酬ID一覧` を押して表示する
-    - 参加券のIDを控える
-    - config.toml の `target_reward_id` に設定する
+    - 参加券として使うIDを1つ以上控える
+    - config.toml の `target_reward_ids` に配列で設定する
 
 config.toml の該当部は，例えばこんな感じになります（記号列は人によって異なります）
 ```yaml
-target_reward_id = "3902c2be-849a-46ed-8b1c-12d196927a31"
+target_reward_ids = ["3902c2be-849a-46ed-8b1c-12d196927a31"]
 ```
+複数指定した場合には，例えばこうなります （もちろん3つ以上設定することも可能です）
+```yaml
+target_reward_ids = ["3902c2be-849a-46ed-8b1c-12d196927a31", "521be219-3e1f-4f78-898b-9a2885c4f73e"]
+```
+
+- `target_reward_ids = []` かつ `cancel_reward_id = ""` のままでもWeb画面は起動しますが，EventSubは無効です
 
 - やってもやらなくても良い設定
   - 参加キャンセル用の券があるなら，それを `cancel_reward_id` に設定してください
