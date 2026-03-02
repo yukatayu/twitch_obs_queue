@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>CSS作成</title>
+  <link rel="stylesheet" href="/assets/app.css" />
+  <link rel="stylesheet" href="/assets/css_creator.css" />
+</head>
+<body>
+  <h1>CSS作成（OBSの見た目）</h1>
+
+  <div class="card">
+    <div class="row">
+      <a class="btn" href="/admin">← 管理画面へ</a>
+      <button class="btn" id="resetBtn" type="button">リセット</button>
+      <div class="spacer"></div>
+      <button class="btn" id="copyBtn" type="button">CSSをコピー</button>
+    </div>
+    <div class="small" style="margin-top:8px;">
+      ここで作ったCSSを、OBSの「ブラウザソース」→「カスタムCSS」に貼り付けてください（Google Fonts はネット接続が必要です）。
+    </div>
+  </div>
+
+  <div class="css-maker">
+    <div class="card controls">
+      <h2>設定</h2>
+
+      <div class="group">
+        <div class="label"><strong>フォント</strong></div>
+        <div class="field">
+          <label><input type="radio" name="fontSource" value="local" checked> インストール済み（/system）</label>
+          <label style="margin-left:12px;"><input type="radio" name="fontSource" value="google"> Google Fonts</label>
+        </div>
+
+        <div id="localFontBox" class="field">
+          <div class="small">font-family に入れる文字列を入力（例: <code>"Yu Gothic UI", Meiryo</code>）。空ならデフォルト。</div>
+          <input id="localFontInput" class="text" list="localFontSuggestions" placeholder='例: "Yu Gothic UI", Meiryo' />
+          <datalist id="localFontSuggestions">
+            <option value='system-ui'></option>
+            <option value='"Yu Gothic UI", "Yu Gothic", Meiryo'></option>
+            <option value='Meiryo'></option>
+            <option value='"MS PGothic"'></option>
+            <option value='"Noto Sans JP"'></option>
+          </datalist>
+        </div>
+
+        <div id="googleFontBox" class="field" style="display:none;">
+          <select id="googleFontSelect" class="text">
+            <option value="Zen Maru Gothic">Zen Maru Gothic</option>
+            <option value="Kaisei Opti">Kaisei Opti</option>
+            <option value="Zen Kurenaido">Zen Kurenaido</option>
+            <option value="Klee One">Klee One</option>
+            <option value="Yusei Magic">Yusei Magic</option>
+            <option value="Yomogi">Yomogi</option>
+          </select>
+          <div class="small" style="margin-top:6px;">
+            ※ Google Fonts を使う場合、このCSSには <code>@import</code> が含まれます。
+          </div>
+        </div>
+      </div>
+
+      <hr/>
+
+      <div class="group">
+        <div class="label"><strong>名前の文字</strong></div>
+        <div class="field row2">
+          <label>色 <input id="nameColor" type="color" value="#ffffff"></label>
+          <label>透明度 <input id="nameAlpha" type="range" min="0" max="100" step="1" value="100"></label>
+          <span id="nameAlphaLabel" class="small">100%</span>
+        </div>
+      </div>
+
+      <hr/>
+
+      <div class="group">
+        <div class="label"><strong>N回参加（最近の参加）</strong></div>
+        <div class="field">
+          <label><input id="metaEnabled" type="checkbox" checked> 表示する</label>
+          <label style="margin-left:12px;"><input id="metaSameColor" type="checkbox" checked> 名前と同じ色</label>
+        </div>
+        <div class="field row2" id="metaControls">
+          <label>色 <input id="metaColor" type="color" value="#ffffff"></label>
+          <label>透明度 <input id="metaAlpha" type="range" min="0" max="100" step="1" value="80"></label>
+          <span id="metaAlphaLabel" class="small">80%</span>
+        </div>
+        <div class="small">※ OFFにすると <code>.meta { display: none !important; }</code> を出力します。</div>
+      </div>
+
+      <hr/>
+
+      <div class="group">
+        <div class="label"><strong>背景（黒箱）</strong></div>
+        <div class="field">
+          <label><input type="radio" name="bgMode" value="none" checked> なし</label>
+          <label style="margin-left:12px;"><input type="radio" name="bgMode" value="all"> 全体で1つ</label>
+          <label style="margin-left:12px;"><input type="radio" name="bgMode" value="each"> 参加者ごと</label>
+        </div>
+        <div class="field row2" id="bgControls">
+          <label>色 <input id="bgColor" type="color" value="#000000"></label>
+          <label>透明度 <input id="bgAlpha" type="range" min="0" max="100" step="1" value="65"></label>
+          <span id="bgAlphaLabel" class="small">65%</span>
+        </div>
+        <div class="small">
+          ※ 角丸は固定値（<code>border-radius: 14px</code>）。幅が「必要な分だけ」になるように <code>flex-start</code> で揃えます。
+        </div>
+      </div>
+    </div>
+
+    <div class="right">
+      <div class="card">
+        <h2>プレビュー（2x2）</h2>
+        <div class="small">暗い背景 / 模様あり × 明るい背景 / 模様なし。短い名前と長い名前を1人ずつ表示します。</div>
+
+        <div class="preview-grid">
+          <div class="preview-cell">
+            <div class="small preview-title">暗い背景 / 模様なし</div>
+            <iframe id="pvDarkSolid" class="preview-frame"></iframe>
+          </div>
+          <div class="preview-cell">
+            <div class="small preview-title">暗い背景 / 模様あり</div>
+            <iframe id="pvDarkPattern" class="preview-frame"></iframe>
+          </div>
+          <div class="preview-cell">
+            <div class="small preview-title">明るい背景 / 模様なし</div>
+            <iframe id="pvBrightSolid" class="preview-frame"></iframe>
+          </div>
+          <div class="preview-cell">
+            <div class="small preview-title">明るい背景 / 模様あり</div>
+            <iframe id="pvBrightPattern" class="preview-frame"></iframe>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>生成されたCSS（OBSのCustom CSSに貼る）</h2>
+        <textarea id="cssOutput" class="css-output" readonly></textarea>
+        <div class="small">
+          このCSSは <code>/obs</code> のDOM（<code>#root</code>, <code>.item</code>, <code>.name</code>, <code>.meta</code>）向けです。
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="/assets/css_creator.js"></script>
+</body>
+</html>

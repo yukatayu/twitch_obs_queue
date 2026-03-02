@@ -1,0 +1,369 @@
+const DEFAULT_FONT_STACK = 'system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial';
+const DEFAULT_FALLBACK_STACK = DEFAULT_FONT_STACK + ', sans-serif';
+
+const GOOGLE_FONTS = {
+  'Zen Maru Gothic': {
+    import: '@import url("https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@400;700&display=swap");',
+    stack: '"Zen Maru Gothic", ' + DEFAULT_FALLBACK_STACK,
+    nameWeight: 700,
+    metaWeight: 400,
+  },
+  'Kaisei Opti': {
+    import: '@import url("https://fonts.googleapis.com/css2?family=Kaisei+Opti:wght@400;700&display=swap");',
+    stack: '"Kaisei Opti", "Times New Roman", Times, serif',
+    nameWeight: 700,
+    metaWeight: 400,
+  },
+  'Zen Kurenaido': {
+    import: '@import url("https://fonts.googleapis.com/css2?family=Zen+Kurenaido&display=swap");',
+    stack: '"Zen Kurenaido", ' + DEFAULT_FALLBACK_STACK,
+    nameWeight: 400,
+    metaWeight: 400,
+  },
+  'Klee One': {
+    import: '@import url("https://fonts.googleapis.com/css2?family=Klee+One:wght@400;600&display=swap");',
+    stack: '"Klee One", cursive',
+    nameWeight: 600,
+    metaWeight: 400,
+  },
+  'Yusei Magic': {
+    import: '@import url("https://fonts.googleapis.com/css2?family=Yusei+Magic&display=swap");',
+    stack: '"Yusei Magic", cursive',
+    nameWeight: 400,
+    metaWeight: 400,
+  },
+  'Yomogi': {
+    import: '@import url("https://fonts.googleapis.com/css2?family=Yomogi&display=swap");',
+    stack: '"Yomogi", cursive',
+    nameWeight: 400,
+    metaWeight: 400,
+  },
+};
+
+// data URI icon (48x48 circle gradient)
+const ICON_DATA_URI =
+  'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0OCIgaGVpZ2h0PSI0OCI+CjxkZWZzPgo8bGluZWFyR3JhZGllbnQgaWQ9ImciIHgxPSIwIiB5MT0iMCIgeDI9IjEiIHkyPSIxIj4KPHN0b3Agb2Zmc2V0PSIwIiBzdG9wLWNvbG9yPSIjN2VlNmZmIi8+CjxzdG9wIG9mZnNldD0iMSIgc3RvcC1jb2xvcj0iI2ZmZDU0YSIvPgo8L2xpbmVhckdyYWRpZW50Pgo8L2RlZnM+CjxjaXJjbGUgY3g9IjI0IiBjeT0iMjQiIHI9IjI0IiBmaWxsPSJ1cmwoI2cpIi8+Cjwvc3ZnPg==';
+
+function clamp(n, min, max) {
+  return Math.min(max, Math.max(min, n));
+}
+
+function hexToRgb(hex) {
+  const m = /^#?([0-9a-fA-F]{6})$/.exec(hex || '');
+  if (!m) {
+    return null;
+  }
+  const v = m[1];
+  const r = parseInt(v.slice(0, 2), 16);
+  const g = parseInt(v.slice(2, 4), 16);
+  const b = parseInt(v.slice(4, 6), 16);
+  return { r, g, b };
+}
+
+function rgba(hex, alpha01) {
+  const rgb = hexToRgb(hex) || { r: 255, g: 255, b: 255 };
+  const a = clamp(alpha01, 0, 1);
+  const af = Math.round(a * 1000) / 1000;
+  return `rgba(${rgb.r},${rgb.g},${rgb.b},${af})`;
+}
+
+async function copyToClipboard(text) {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch (_) {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.left = '-9999px';
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    const ok = document.execCommand('copy');
+    document.body.removeChild(ta);
+    return ok;
+  }
+}
+
+function q(sel) {
+  return document.querySelector(sel);
+}
+
+function id(x) {
+  return document.getElementById(x);
+}
+
+function readState() {
+  const fontSource = q('input[name="fontSource"]:checked')?.value || 'local';
+  const googleFont = id('googleFontSelect')?.value || 'Zen Maru Gothic';
+  const localFontRaw = (id('localFontInput')?.value || '').trim();
+
+  const nameColor = id('nameColor')?.value || '#ffffff';
+  const nameAlpha = clamp(parseInt(id('nameAlpha')?.value || '100', 10), 0, 100) / 100;
+
+  const metaEnabled = !!id('metaEnabled')?.checked;
+  const metaSameColor = !!id('metaSameColor')?.checked;
+  const metaColor = id('metaColor')?.value || '#ffffff';
+  const metaAlpha = clamp(parseInt(id('metaAlpha')?.value || '80', 10), 0, 100) / 100;
+
+  const bgMode = q('input[name="bgMode"]:checked')?.value || 'none';
+  const bgColor = id('bgColor')?.value || '#000000';
+  const bgAlpha = clamp(parseInt(id('bgAlpha')?.value || '65', 10), 0, 100) / 100;
+
+  let fontStack = DEFAULT_FONT_STACK;
+  let nameWeight = null;
+  let metaWeight = null;
+  let importLine = null;
+
+  if (fontSource === 'google') {
+    const f = GOOGLE_FONTS[googleFont] || GOOGLE_FONTS['Zen Maru Gothic'];
+    importLine = f.import;
+    fontStack = f.stack;
+    nameWeight = f.nameWeight;
+    metaWeight = f.metaWeight;
+  } else {
+    // local/system: 入力があるならそれを先頭に置き、最後は default fallback にする
+    if (localFontRaw) {
+      fontStack = `${localFontRaw}, ${DEFAULT_FONT_STACK}`;
+    } else {
+      fontStack = DEFAULT_FONT_STACK;
+    }
+  }
+
+  return {
+    fontSource,
+    googleFont,
+    importLine,
+    fontStack,
+    nameWeight,
+    metaWeight,
+    nameColor,
+    nameAlpha,
+    metaEnabled,
+    metaSameColor,
+    metaColor,
+    metaAlpha,
+    bgMode,
+    bgColor,
+    bgAlpha,
+  };
+}
+
+function buildObsCss(st) {
+  const lines = [];
+
+  // @import は CSS の最上部に置く（コメントより前）
+  if (st.fontSource === 'google' && st.importLine) {
+    lines.push(st.importLine);
+    lines.push('');
+  }
+
+  lines.push('/* Generated by /admin/css (twitch_obs_queue) */');
+
+  // font
+  lines.push(`body { font-family: ${st.fontStack} !important; }`);
+
+  // .name
+  {
+    const decl = [];
+    if (st.nameWeight != null) {
+      decl.push(`font-weight: ${st.nameWeight} !important;`);
+    }
+    decl.push(`color: ${rgba(st.nameColor, st.nameAlpha)} !important;`);
+    decl.push('opacity: 1 !important;');
+    lines.push(`.name { ${decl.join(' ')} }`);
+  }
+
+  // .meta
+  if (!st.metaEnabled) {
+    lines.push('.meta { display: none !important; }');
+  } else {
+    const metaHex = st.metaSameColor ? st.nameColor : st.metaColor;
+    const decl = [];
+    if (st.metaWeight != null) {
+      decl.push(`font-weight: ${st.metaWeight} !important;`);
+    }
+    decl.push(`color: ${rgba(metaHex, st.metaAlpha)} !important;`);
+    // obs.css の opacity(0.8) と二重に掛からないよう 1 に戻す
+    decl.push('opacity: 1 !important;');
+    lines.push(`.meta { ${decl.join(' ')} }`);
+  }
+
+  // background
+  if (st.bgMode !== 'none') {
+    const bg = rgba(st.bgColor, st.bgAlpha);
+
+    if (st.bgMode === 'all') {
+      lines.push(
+        `#root { display: inline-flex !important; flex-direction: column !important; align-items: flex-start !important; gap: 8px !important; padding: 10px 12px !important; background: ${bg} !important; border-radius: 14px !important; }`
+      );
+      lines.push('.item { margin: 0 !important; }');
+    } else if (st.bgMode === 'each') {
+      lines.push(
+        '#root { display: flex !important; flex-direction: column !important; align-items: flex-start !important; gap: 8px !important; }'
+      );
+      lines.push(
+        `.item { margin: 0 !important; padding: 8px 10px !important; background: ${bg} !important; border-radius: 14px !important; }`
+      );
+    }
+  }
+
+  return lines.join('\n');
+}
+
+function sceneBgCss(kind) {
+  if (kind === 'darkSolid') {
+    return 'background: #111;';
+  }
+  if (kind === 'darkPattern') {
+    return `
+background-color: #111;
+background-image:
+  linear-gradient(45deg,
+    rgba(255,255,255,0.06) 25%,
+    transparent 25%,
+    transparent 50%,
+    rgba(255,255,255,0.06) 50%,
+    rgba(255,255,255,0.06) 75%,
+    transparent 75%,
+    transparent
+  );
+background-size: 28px 28px;`.trim();
+  }
+  if (kind === 'brightSolid') {
+    return 'background: #f3f3f3;';
+  }
+  // brightPattern
+  return `
+background-color: #f3f3f3;
+background-image:
+  linear-gradient(45deg,
+    rgba(0,0,0,0.06) 25%,
+    transparent 25%,
+    transparent 50%,
+    rgba(0,0,0,0.06) 50%,
+    rgba(0,0,0,0.06) 75%,
+    transparent 75%,
+    transparent
+  );
+background-size: 28px 28px;`.trim();
+}
+
+function buildPreviewSrcdoc(obsCss, kind) {
+  const bg = sceneBgCss(kind);
+  // 短い名前 + 長い名前（2行）
+  const shortName = 'ゆかた';
+  const longName = 'とてもとても長い名前の参加者さん（プレビュー用）';
+  return `<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Preview</title>
+  <link rel="stylesheet" href="/assets/obs.css" />
+  <style>
+    html, body { width: 100%; height: 100%; }
+    body { ${bg} padding: 10px; box-sizing: border-box; }
+  </style>
+  <style>
+${obsCss}
+  </style>
+</head>
+<body>
+  <div id="root">
+    <div class="item">
+      <img src="${ICON_DATA_URI}" />
+      <div class="name">${shortName}</div>
+      <div class="meta">最近の参加: 1</div>
+    </div>
+    <div class="item">
+      <img src="${ICON_DATA_URI}" />
+      <div class="name">${longName}</div>
+      <div class="meta">最近の参加: 12</div>
+    </div>
+  </div>
+</body>
+</html>`;
+}
+
+function updateUiEnabled(st) {
+  // font boxes
+  id('localFontBox').style.display = st.fontSource === 'local' ? '' : 'none';
+  id('googleFontBox').style.display = st.fontSource === 'google' ? '' : 'none';
+
+  // alpha labels
+  id('nameAlphaLabel').textContent = `${Math.round(st.nameAlpha * 100)}%`;
+  id('metaAlphaLabel').textContent = `${Math.round(st.metaAlpha * 100)}%`;
+  id('bgAlphaLabel').textContent = `${Math.round(st.bgAlpha * 100)}%`;
+
+  // meta controls
+  id('metaSameColor').disabled = !st.metaEnabled;
+  id('metaColor').disabled = !st.metaEnabled || st.metaSameColor;
+  id('metaAlpha').disabled = !st.metaEnabled;
+
+  // bg controls
+  const bgEnabled = st.bgMode !== 'none';
+  id('bgColor').disabled = !bgEnabled;
+  id('bgAlpha').disabled = !bgEnabled;
+}
+
+function update() {
+  const st = readState();
+  const css = buildObsCss(st);
+
+  id('cssOutput').value = css;
+
+  // preview iframes
+  id('pvDarkSolid').srcdoc = buildPreviewSrcdoc(css, 'darkSolid');
+  id('pvDarkPattern').srcdoc = buildPreviewSrcdoc(css, 'darkPattern');
+  id('pvBrightSolid').srcdoc = buildPreviewSrcdoc(css, 'brightSolid');
+  id('pvBrightPattern').srcdoc = buildPreviewSrcdoc(css, 'brightPattern');
+
+  updateUiEnabled(st);
+}
+
+function setDefaults() {
+  // font
+  q('input[name="fontSource"][value="local"]').checked = true;
+  id('localFontInput').value = '';
+  id('googleFontSelect').value = 'Zen Maru Gothic';
+
+  // name
+  id('nameColor').value = '#ffffff';
+  id('nameAlpha').value = '100';
+
+  // meta
+  id('metaEnabled').checked = true;
+  id('metaSameColor').checked = true;
+  id('metaColor').value = '#ffffff';
+  id('metaAlpha').value = '80';
+
+  // bg
+  q('input[name="bgMode"][value="none"]').checked = true;
+  id('bgColor').value = '#000000';
+  id('bgAlpha').value = '65';
+}
+
+function wireEvents() {
+  const els = document.querySelectorAll('input, select');
+  for (const el of els) {
+    el.addEventListener('input', update);
+    el.addEventListener('change', update);
+  }
+
+  id('resetBtn').onclick = () => {
+    setDefaults();
+    update();
+  };
+
+  id('copyBtn').onclick = async () => {
+    const css = id('cssOutput').value || '';
+    const ok = await copyToClipboard(css);
+    id('copyBtn').textContent = ok ? 'コピーしました' : 'コピー失敗';
+    setTimeout(() => (id('copyBtn').textContent = 'CSSをコピー'), 900);
+  };
+}
+
+setDefaults();
+wireEvents();
+update();

@@ -48,6 +48,7 @@ pub fn router(state: Arc<AppState>) -> Router {
     let obs_file = format!("{static_dir}/obs.html");
     let admin_file = format!("{static_dir}/admin.html");
     let rewards_file = format!("{static_dir}/rewards.html");
+    let css_creator_file = format!("{static_dir}/css_creator.html");
     let assets_dir = format!("{static_dir}/assets");
 
     Router::new()
@@ -55,6 +56,7 @@ pub fn router(state: Arc<AppState>) -> Router {
         .route("/obs", get_service(ServeFile::new(obs_file)))
         .route("/admin", get_service(ServeFile::new(admin_file)))
         .route("/admin/rewards", get_service(ServeFile::new(rewards_file)))
+        .route("/admin/css", get_service(ServeFile::new(css_creator_file)))
         .nest_service("/assets", ServeDir::new(assets_dir))
         // Auth
         .route("/auth/start", get(auth_start))
